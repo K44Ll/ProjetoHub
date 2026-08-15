@@ -162,3 +162,4 @@ Também foram verificados os fluxos de criação de equipe, liderança automáti
 ## Deploy
 
 Na Vercel, use `projetohub` como diretório raiz do projeto e cadastre as mesmas variáveis de ambiente utilizadas localmente. Depois, inclua o domínio publicado na lista de URLs permitidas do Supabase Auth para que confirmações de e-mail e retornos de convite funcionem corretamente.
+
