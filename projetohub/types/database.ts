@@ -303,6 +303,53 @@ export type Database = {
           },
         ]
       }
+      team_drive_connections: {
+        Row: {
+          access_token_ciphertext: string
+          access_token_expires_at: string
+          connected_by: string | null
+          created_at: string
+          granted_scopes: string[]
+          refresh_token_ciphertext: string
+          root_folder_id: string
+          root_folder_name: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token_ciphertext: string
+          access_token_expires_at: string
+          connected_by?: string | null
+          created_at?: string
+          granted_scopes?: string[]
+          refresh_token_ciphertext: string
+          root_folder_id: string
+          root_folder_name: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_token_ciphertext?: string
+          access_token_expires_at?: string
+          connected_by?: string | null
+          created_at?: string
+          granted_scopes?: string[]
+          refresh_token_ciphertext?: string
+          root_folder_id?: string
+          root_folder_name?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_drive_connections_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           created_at: string

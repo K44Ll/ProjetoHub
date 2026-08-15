@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { AuthShell } from "@/components/auth/auth-shell";
+import { safeInternalPath } from "@/lib/safe-redirect";
 import { createClient } from "@/utils/supabase/client";
 
 export default function CadastroPage() {
@@ -38,10 +39,7 @@ export default function CadastroPage() {
 
     try {
       const requestedPath = new URLSearchParams(window.location.search).get("next");
-      const safeNextPath =
-        requestedPath?.startsWith("/") && !requestedPath.startsWith("//")
-          ? requestedPath
-          : null;
+      const safeNextPath = safeInternalPath(requestedPath, "");
       const loginRedirect = safeNextPath
         ? `/login?next=${encodeURIComponent(safeNextPath)}`
         : "/login";
@@ -79,9 +77,10 @@ export default function CadastroPage() {
 
   function preserveReturnPath(event: MouseEvent<HTMLAnchorElement>) {
     const requestedPath = new URLSearchParams(window.location.search).get("next");
-    if (requestedPath?.startsWith("/") && !requestedPath.startsWith("//")) {
+    const destination = safeInternalPath(requestedPath, "");
+    if (destination) {
       event.preventDefault();
-      router.push(`/login?next=${encodeURIComponent(requestedPath)}`);
+      router.push(`/login?next=${encodeURIComponent(destination)}`);
     }
   }
 

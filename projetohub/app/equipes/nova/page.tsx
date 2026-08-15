@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BrandMark } from "@/components/brand-mark";
 import { CreateTeamForm } from "@/components/teams/create-team-form";
 import { ThemeControl } from "@/components/theme-control";
 import { createClient } from "@/utils/supabase/server";
@@ -19,11 +20,7 @@ export default async function NewTeamPage() {
 
       <header className="workspace-header">
         <Link className="brand" href="/" aria-label="Voltar ao ProjetoHub">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
+          <BrandMark />
           <span>ProjetoHub</span>
         </Link>
         <ThemeControl />

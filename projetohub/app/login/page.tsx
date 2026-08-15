@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { AuthShell } from "@/components/auth/auth-shell";
+import { safeInternalPath } from "@/lib/safe-redirect";
 import { createClient } from "@/utils/supabase/client";
 
 export default function LoginPage() {
@@ -40,10 +41,7 @@ export default function LoginPage() {
       }
 
       const requestedPath = new URLSearchParams(window.location.search).get("next");
-      const destination =
-        requestedPath?.startsWith("/") && !requestedPath.startsWith("//")
-          ? requestedPath
-          : "/";
+      const destination = safeInternalPath(requestedPath);
       router.replace(destination);
       router.refresh();
     } catch {
@@ -55,9 +53,10 @@ export default function LoginPage() {
 
   function handleCreateAccount(event: MouseEvent<HTMLAnchorElement>) {
     const requestedPath = new URLSearchParams(window.location.search).get("next");
-    if (requestedPath?.startsWith("/") && !requestedPath.startsWith("//")) {
+    const destination = safeInternalPath(requestedPath, "");
+    if (destination) {
       event.preventDefault();
-      router.push(`/cadastro?next=${encodeURIComponent(requestedPath)}`);
+      router.push(`/cadastro?next=${encodeURIComponent(destination)}`);
     }
   }
 

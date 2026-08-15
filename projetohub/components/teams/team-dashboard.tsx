@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import {
   addTaskCommentAction,
@@ -15,6 +16,7 @@ import {
   updateMemberRoleAction,
   updateTeamAction,
 } from "@/app/actions/team";
+import { BrandMark } from "@/components/brand-mark";
 import { ThemeControl } from "@/components/theme-control";
 import type {
   ActionState,
@@ -30,7 +32,48 @@ import type {
 } from "@/types/app";
 import { initialActionState } from "@/types/app";
 
-type Tab = "tasks" | "members" | "activity" | "reports" | "settings";
+type Tab = "tasks" | "files" | "members" | "activity" | "reports" | "settings";
+
+type DriveFileRecord = {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: string | null;
+  modifiedTime: string | null;
+  webViewLink: string | null;
+  isFolder: boolean;
+  canDownload: boolean;
+};
+
+type DriveFilesResponse = {
+  files?: DriveFileRecord[];
+  error?: string;
+  code?: string;
+};
+
+class DriveFilesRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly code?: string,
+  ) {
+    super(message);
+    this.name = "DriveFilesRequestError";
+  }
+}
+
+async function fetchTeamDriveFiles(teamId: string) {
+  const response = await fetch(`/api/teams/${teamId}/drive/files`, {
+    cache: "no-store",
+  });
+  const payload = (await response.json()) as DriveFilesResponse;
+  if (!response.ok) {
+    throw new DriveFilesRequestError(
+      payload.error || "Não foi possível carregar os arquivos.",
+      payload.code,
+    );
+  }
+  return payload.files ?? [];
+}
 
 const roleLabels: Record<TeamRole, string> = {
   reader: "Leitor",
@@ -92,7 +135,7 @@ export function TeamDashboard({ data, notice }: { data: TeamDetailData; notice: 
       <div className="dashboard-grid-bg" aria-hidden="true" />
       <header className="workspace-header team-workspace-header">
         <Link className="brand" href="/" aria-label="Voltar ao painel">
-          <span className="brand-mark" aria-hidden="true"><span /><span /><span /></span>
+          <BrandMark />
           <span>ProjetoHub</span>
         </Link>
         <div className="team-header-actions">
@@ -142,6 +185,7 @@ export function TeamDashboard({ data, notice }: { data: TeamDetailData; notice: 
         <nav className="team-tabs" aria-label="Áreas da equipe">
           {([
             ["tasks", "Tarefas"],
+            ["files", "Arquivos"],
             ["members", "Participantes"],
             ["activity", "Atividade"],
             ["reports", "Relatórios"],
@@ -159,6 +203,7 @@ export function TeamDashboard({ data, notice }: { data: TeamDetailData; notice: 
         </nav>
 
         {tab === "tasks" ? <TasksPanel data={data} canManage={canManage} /> : null}
+        {tab === "files" ? <FilesPanel data={data} canManage={canManage} /> : null}
         {tab === "members" ? (
           <MembersPanel data={data} canManage={canManage} isLeader={isLeader} />
         ) : null}
@@ -168,6 +213,337 @@ export function TeamDashboard({ data, notice }: { data: TeamDetailData; notice: 
       </div>
     </main>
   );
+}
+
+function FilesPanel({ data, canManage }: { data: TeamDetailData; canManage: boolean }) {
+  const router = useRouter();
+  const canUpload = data.currentRole !== "reader";
+  const [files, setFiles] = useState<DriveFileRecord[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(data.drive.connected);
+  const [uploading, setUploading] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+
+  const loadFiles = useCallback(async () => {
+    if (!data.drive.connected) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const loadedFiles = await fetchTeamDriveFiles(data.team.id);
+      setFiles(loadedFiles);
+      setNeedsReconnect(false);
+    } catch (loadError) {
+      setNeedsReconnect(
+        loadError instanceof DriveFilesRequestError &&
+          loadError.code === "drive_reconnect_required",
+      );
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Não foi possível carregar os arquivos.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [data.drive.connected, data.team.id]);
+
+  useEffect(() => {
+    if (!data.drive.connected) return;
+    let cancelled = false;
+
+    void fetchTeamDriveFiles(data.team.id)
+      .then((loadedFiles) => {
+        if (cancelled) return;
+        setFiles(loadedFiles);
+        setNeedsReconnect(false);
+      })
+      .catch((loadError: unknown) => {
+        if (cancelled) return;
+        setNeedsReconnect(
+          loadError instanceof DriveFilesRequestError &&
+            loadError.code === "drive_reconnect_required",
+        );
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Não foi possível carregar os arquivos.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data.drive.connected, data.team.id]);
+
+  async function uploadFile(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedFile) {
+      setError("Escolha um arquivo antes de enviar.");
+      return;
+    }
+
+    const form = event.currentTarget;
+    const mimeType = selectedFile.type || "application/octet-stream";
+    setUploading(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const sessionResponse = await fetch(`/api/teams/${data.team.id}/drive/files`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: selectedFile.name,
+          mimeType,
+          size: selectedFile.size,
+        }),
+      });
+      const session = (await sessionResponse.json()) as {
+        uploadUrl?: string;
+        error?: string;
+      };
+      if (!sessionResponse.ok || !session.uploadUrl) {
+        throw new Error(session.error || "Não foi possível iniciar o envio.");
+      }
+
+      const uploadResponse = await fetch(session.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": mimeType },
+        body: selectedFile,
+      });
+      if (!uploadResponse.ok) {
+        throw new Error("O envio foi interrompido pelo Google Drive. Tente novamente.");
+      }
+
+      setMessage(`“${selectedFile.name}” foi enviado para a pasta da equipe.`);
+      setSelectedFile(null);
+      form.reset();
+      await loadFiles();
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Não foi possível enviar o arquivo.",
+      );
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function disconnectDrive() {
+    const confirmed = window.confirm(
+      "Desconectar o Google Drive desta equipe? Os arquivos continuarão na pasta do Drive.",
+    );
+    if (!confirmed) return;
+
+    setDisconnecting(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/teams/${data.team.id}/drive/connection`, {
+        method: "DELETE",
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || "Não foi possível desconectar o Google Drive.");
+      }
+      router.refresh();
+    } catch (disconnectError) {
+      setError(
+        disconnectError instanceof Error
+          ? disconnectError.message
+          : "Não foi possível desconectar o Google Drive.",
+      );
+      setDisconnecting(false);
+    }
+  }
+
+  if (!data.drive.connected) {
+    return (
+      <section className="team-panel drive-panel">
+        <div className="drive-empty-state">
+          <div className="drive-logo" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          <span className="dashboard-eyebrow">Armazenamento da equipe</span>
+          <h2>Conecte uma pasta do Google Drive</h2>
+          <p>
+            PDFs, apresentações, documentos e outros arquivos ficarão na pasta
+            real da equipe e poderão ser acessados por aqui.
+          </p>
+          {canManage ? (
+            <a
+              className="primary-action drive-connect-button"
+              href={`/api/integrations/google-drive/connect?teamId=${data.team.id}`}
+            >
+              Conectar Google Drive
+            </a>
+          ) : (
+            <span className="permission-note">
+              Um líder ou colíder precisa conectar a pasta primeiro.
+            </span>
+          )}
+          <small>O ProjetoHub solicitará apenas acesso aos arquivos usados pela integração.</small>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="team-panel drive-panel">
+      <div className="team-panel-heading drive-panel-heading">
+        <div>
+          <span className="dashboard-eyebrow">Google Drive</span>
+          <h2>{data.drive.rootFolderName || "Arquivos da equipe"}</h2>
+          <p>Conteúdo carregado diretamente da pasta conectada.</p>
+        </div>
+        <div className="drive-heading-actions">
+          {data.drive.rootFolderId ? (
+            <a
+              className="compact-button"
+              href={`https://drive.google.com/drive/folders/${data.drive.rootFolderId}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Abrir no Drive
+            </a>
+          ) : null}
+          {canManage ? (
+            <button
+              className="compact-button danger-button"
+              type="button"
+              onClick={disconnectDrive}
+              disabled={disconnecting}
+            >
+              {disconnecting ? "Desconectando…" : "Desconectar"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {canUpload ? (
+        <form className="drive-upload-form" onSubmit={uploadFile}>
+          <label className="drive-file-picker">
+            <span>{selectedFile ? selectedFile.name : "Escolher arquivo"}</span>
+            <input
+              type="file"
+              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+              disabled={uploading}
+            />
+          </label>
+          <div className="drive-upload-meta">
+            <span>
+              {selectedFile
+                ? `${formatFileSize(selectedFile.size)} selecionados`
+                : "PDF, Word, PowerPoint, imagens e outros formatos · até 250 MB"}
+            </span>
+            <button className="primary-action" type="submit" disabled={uploading || !selectedFile}>
+              {uploading ? "Enviando ao Drive…" : "Enviar arquivo"}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <p className="permission-note drive-permission-note">
+          Leitores podem abrir e baixar arquivos. Editores, colíderes e líderes também podem enviar.
+        </p>
+      )}
+
+      <div className="drive-feedback" aria-live="polite">
+        {message ? <p className="form-feedback is-success">{message}</p> : null}
+        {error ? (
+          <div className="drive-error" role="alert">
+            <p>{error}</p>
+            {needsReconnect && canManage ? (
+              <a href={`/api/integrations/google-drive/connect?teamId=${data.team.id}`}>
+                Reconectar Google Drive
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      {loading ? (
+        <div className="drive-loading" role="status">
+          <span className="button-spinner" aria-hidden="true" />
+          Carregando arquivos reais do Drive…
+        </div>
+      ) : files.length ? (
+        <div className="drive-file-list">
+          <div className="drive-file-list-head" aria-hidden="true">
+            <span>Nome</span>
+            <span>Tamanho</span>
+            <span>Modificado</span>
+            <span>Ações</span>
+          </div>
+          {files.map((file) => (
+            <article className="drive-file-row" key={file.id}>
+              <span className={`drive-file-type${file.isFolder ? " is-folder" : ""}`}>
+                {driveFileLabel(file)}
+              </span>
+              <div className="drive-file-name">
+                <strong>{file.name}</strong>
+                <span>{file.mimeType}</span>
+              </div>
+              <span className="drive-file-size">
+                {file.isFolder ? "Pasta" : formatFileSize(file.size)}
+              </span>
+              <time>{file.modifiedTime ? formatDate(file.modifiedTime) : "Sem data"}</time>
+              <div className="drive-file-actions">
+                {file.webViewLink ? (
+                  <a href={file.webViewLink} target="_blank" rel="noreferrer">
+                    Abrir
+                  </a>
+                ) : null}
+                {!file.isFolder && file.canDownload ? (
+                  <a href={`/api/teams/${data.team.id}/drive/files/${file.id}/download`}>
+                    Baixar
+                  </a>
+                ) : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : error ? null : (
+        <EmptyPanel
+          title="A pasta ainda está vazia"
+          text={
+            canUpload
+              ? "Escolha o primeiro arquivo para iniciar o repositório da equipe."
+              : "A equipe ainda não enviou nenhum arquivo."
+          }
+        />
+      )}
+    </section>
+  );
+}
+
+function driveFileLabel(file: DriveFileRecord) {
+  if (file.isFolder) return "DIR";
+  const extension = file.name.includes(".") ? file.name.split(".").pop() : null;
+  return extension && extension.length <= 5 ? extension.toUpperCase() : "ARQ";
+}
+
+function formatFileSize(value: string | number | null) {
+  const bytes = typeof value === "string" ? Number(value) : value;
+  if (bytes === null || !Number.isFinite(bytes)) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+
+  const units = ["KB", "MB", "GB", "TB"];
+  let size = bytes / 1024;
+  let unit = units[0];
+  for (let index = 1; index < units.length && size >= 1024; index += 1) {
+    size /= 1024;
+    unit = units[index];
+  }
+  return `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(size)} ${unit}`;
 }
 
 function TasksPanel({ data, canManage }: { data: TeamDetailData; canManage: boolean }) {

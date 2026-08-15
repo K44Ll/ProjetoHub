@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { BrandMark } from "@/components/brand-mark";
 import { InviteAcceptForm } from "@/components/teams/invite-accept-form";
 import { ThemeControl } from "@/components/theme-control";
 import { createClient } from "@/utils/supabase/server";
@@ -32,7 +33,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
       <div className="dashboard-grid-bg" aria-hidden="true" />
       <header className="workspace-header">
         <Link className="brand" href="/">
-          <span className="brand-mark" aria-hidden="true"><span /><span /><span /></span>
+          <BrandMark />
           <span>ProjetoHub</span>
         </Link>
         <ThemeControl />

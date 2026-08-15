@@ -11,6 +11,26 @@ const allowedPhotoTypes = new Map([
   ["image/webp", "webp"],
 ]);
 
+async function hasExpectedImageSignature(photo: File) {
+  const bytes = new Uint8Array(await photo.slice(0, 12).arrayBuffer());
+
+  if (photo.type === "image/jpeg") {
+    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  if (photo.type === "image/png") {
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    return signature.every((byte, index) => bytes[index] === byte);
+  }
+  if (photo.type === "image/webp") {
+    return (
+      bytes.length >= 12 &&
+      String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
+      String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
+    );
+  }
+  return false;
+}
+
 function textField(formData: FormData, name: string) {
   const value = formData.get(name);
   return typeof value === "string" ? value.trim() : "";
@@ -87,6 +107,13 @@ export async function createTeamAction(
       return {
         status: "error",
         message: "A foto pode ter no máximo 5 MB.",
+      };
+    }
+
+    if (!(await hasExpectedImageSignature(photo))) {
+      return {
+        status: "error",
+        message: "O conteúdo da foto não corresponde a uma imagem válida.",
       };
     }
   }

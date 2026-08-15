@@ -70,7 +70,15 @@ export async function getTeamDetailData(
   const currentRole = membershipResult.data.role as TeamRole;
   const canManage = currentRole === "leader" || currentRole === "co_leader";
 
-  const [membersResult, tasksResult, commentsResult, activitiesResult, invitesResult, reportsResult] =
+  const [
+    membersResult,
+    tasksResult,
+    commentsResult,
+    activitiesResult,
+    invitesResult,
+    reportsResult,
+    driveResult,
+  ] =
     await Promise.all([
       supabase
         .from("team_members")
@@ -101,6 +109,11 @@ export async function getTeamDetailData(
         .select("id, title, created_at, content")
         .eq("team_id", teamId)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("team_drive_connections")
+        .select("root_folder_id, root_folder_name, created_at")
+        .eq("team_id", teamId)
+        .maybeSingle(),
     ]);
 
   const firstError =
@@ -109,7 +122,8 @@ export async function getTeamDetailData(
     commentsResult.error ??
     activitiesResult.error ??
     invitesResult.error ??
-    reportsResult.error;
+    reportsResult.error ??
+    driveResult.error;
 
   if (firstError) {
     throw new Error(`Não foi possível carregar os dados da equipe: ${firstError.message}`);
@@ -261,5 +275,18 @@ export async function getTeamDetailData(
     activities,
     invites,
     reports,
+    drive: driveResult.data
+      ? {
+          connected: true,
+          connectedAt: driveResult.data.created_at,
+          rootFolderId: driveResult.data.root_folder_id,
+          rootFolderName: driveResult.data.root_folder_name,
+        }
+      : {
+          connected: false,
+          connectedAt: null,
+          rootFolderId: null,
+          rootFolderName: null,
+        },
   };
 }

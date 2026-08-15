@@ -90,13 +90,15 @@ export async function revokeInviteAction(
   const { supabase, userId } = await authenticatedClient();
   if (!userId) return errorState("Sua sessão expirou. Entre novamente.");
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("team_invites")
     .update({ revoked_at: new Date().toISOString() })
     .eq("id", inviteId)
-    .eq("team_id", teamId);
+    .eq("team_id", teamId)
+    .select("id")
+    .maybeSingle();
 
-  if (error) return errorState("Não foi possível revogar o convite.");
+  if (error || !data) return errorState("Não foi possível revogar o convite.");
   revalidatePath(`/equipes/${teamId}`);
   return successState("Convite revogado.");
 }
@@ -219,16 +221,18 @@ export async function reviewTaskAction(
   const { supabase, userId } = await authenticatedClient();
   if (!userId) return errorState("Sua sessão expirou. Entre novamente.");
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("tasks")
     .update({
       status,
       completed_at: status === "completed" ? new Date().toISOString() : null,
     })
     .eq("id", taskId)
-    .eq("team_id", teamId);
+    .eq("team_id", teamId)
+    .select("id")
+    .maybeSingle();
 
-  if (error) return errorState("Não foi possível alterar a tarefa.");
+  if (error || !data) return errorState("Não foi possível alterar a tarefa.");
   revalidatePath(`/equipes/${teamId}`);
   revalidatePath("/");
   return successState(status === "completed" ? "Tarefa aprovada." : "Status atualizado.");
@@ -277,13 +281,15 @@ export async function updateMemberRoleAction(
   const { supabase, userId } = await authenticatedClient();
   if (!userId) return errorState("Sua sessão expirou. Entre novamente.");
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("team_members")
     .update({ role })
     .eq("team_id", teamId)
-    .eq("user_id", memberId);
+    .eq("user_id", memberId)
+    .select("user_id")
+    .maybeSingle();
 
-  if (error) return errorState("Somente o líder pode alterar funções.");
+  if (error || !data) return errorState("Somente o líder pode alterar funções.");
   revalidatePath(`/equipes/${teamId}`);
   return successState("Função atualizada.");
 }
@@ -302,13 +308,15 @@ export async function removeMemberAction(
   if (!userId) return errorState("Sua sessão expirou. Entre novamente.");
   if (memberId === userId) return errorState("O líder não pode remover a própria conta.");
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("team_members")
     .delete()
     .eq("team_id", teamId)
-    .eq("user_id", memberId);
+    .eq("user_id", memberId)
+    .select("user_id")
+    .maybeSingle();
 
-  if (error) return errorState("Não foi possível remover o participante.");
+  if (error || !data) return errorState("Não foi possível remover o participante.");
   revalidatePath(`/equipes/${teamId}`);
   revalidatePath("/");
   return successState("Participante removido.");
@@ -371,7 +379,7 @@ export async function updateTeamAction(
   const { supabase, userId } = await authenticatedClient();
   if (!userId) return errorState("Sua sessão expirou. Entre novamente.");
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("teams")
     .update({
       subject,
@@ -380,9 +388,11 @@ export async function updateTeamAction(
       description: description || null,
       delivery_at: new Date(deliveryAtValue).toISOString(),
     })
-    .eq("id", teamId);
+    .eq("id", teamId)
+    .select("id")
+    .maybeSingle();
 
-  if (error) return errorState("Não foi possível atualizar a equipe.");
+  if (error || !data) return errorState("Não foi possível atualizar a equipe.");
   revalidatePath(`/equipes/${teamId}`);
   revalidatePath("/");
   return successState("Informações da equipe atualizadas.");

@@ -100,6 +100,13 @@ export type TeamReport = {
   content: Record<string, unknown>;
 };
 
+export type TeamDriveConnection = {
+  connected: boolean;
+  connectedAt: string | null;
+  rootFolderId: string | null;
+  rootFolderName: string | null;
+};
+
 export type TeamDetailData = {
   team: TeamSummary;
   referenceTime: string;
@@ -111,6 +118,7 @@ export type TeamDetailData = {
   activities: ActivityItem[];
   invites: TeamInvite[];
   reports: TeamReport[];
+  drive: TeamDriveConnection;
 };
 
 export type ActionState = {

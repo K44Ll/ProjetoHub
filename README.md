@@ -20,16 +20,17 @@ O ProjetoHub reúne equipes, tarefas, entregas e histórico em um único espaço
 - Histórico de criação, entregas, comentários, alterações e relatórios.
 - Relatórios de contribuição gerados a partir dos registros reais da equipe.
 - Fotos privadas de equipe armazenadas no Supabase Storage.
+- Pasta real por equipe no Google Drive, com conexão OAuth, listagem, upload e download pelo site.
 - Sete temas: Light, Dark, Dark OLED, Neon, Tokyo Lights, Black Green e Black Purple.
 
 ## Hierarquia da equipe
 
 | Função | Permissões |
 | --- | --- |
-| Leitor | Consulta equipe, tarefas, atividades e relatórios. |
-| Editor | Também comenta e envia as próprias tarefas para revisão. |
-| Colíder | Também cria convites, distribui tarefas, revisa entregas e gera relatórios. |
-| Líder | Possui todas as permissões e administra funções e participantes. |
+| Leitor | Consulta equipe, tarefas, atividades, relatórios e baixa arquivos. |
+| Editor | Também comenta, envia tarefas e arquivos para a pasta da equipe. |
+| Colíder | Também cria convites, distribui tarefas, revisa entregas, gera relatórios e conecta o Drive. |
+| Líder | Possui todas as permissões e administra funções, participantes e integrações. |
 
 Cada equipe possui um único líder. Novos participantes entram com a função definida no convite, e somente o líder pode promover, rebaixar ou remover integrantes.
 
@@ -50,6 +51,7 @@ Cada equipe possui um único líder. Novos participantes entram com a função d
 - [Tailwind CSS 4](https://tailwindcss.com/).
 - [Supabase](https://supabase.com/) para autenticação, PostgreSQL, Storage e Row Level Security.
 - [`@supabase/ssr`](https://supabase.com/docs/guides/auth/server-side/nextjs) para sessões no servidor e no navegador.
+- [Google Drive API](https://developers.google.com/workspace/drive/api/guides/about-sdk) com o escopo limitado `drive.file`.
 
 Os relatórios atuais são determinísticos e usam exclusivamente os registros do banco. A configuração do OpenRouter é opcional e está reservada para futuras funcionalidades que realmente precisem de IA.
 
@@ -92,12 +94,21 @@ Crie `.env.local` no diretório atual (`projetohub/`):
 NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sua_chave_publicavel
 
+GOOGLE_DRIVE_CLIENT_ID=seu_cliente_oauth
+GOOGLE_DRIVE_CLIENT_SECRET=seu_segredo_oauth
+GOOGLE_DRIVE_REDIRECT_URI=http://localhost:3000/api/integrations/google-drive/callback
+
+# Fortemente recomendado: use uma chave longa, aleatória e exclusiva em produção.
+GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY=uma_chave_aleatoria_longa_e_exclusiva
+
 # Opcionais: ainda não são necessários para os relatórios atuais
 OPENROUTER_KEY=sua_chave
 OPENROUTER_MODEL=seu_modelo
 ```
 
 Nunca envie `.env.local` ao Git. Os arquivos de ambiente já estão ignorados pelo projeto.
+
+No Google Cloud, ative a Google Drive API, crie um cliente OAuth do tipo aplicação Web e cadastre a URI de redirecionamento exatamente como aparece em `GOOGLE_DRIVE_REDIRECT_URI`. Para produção, cadastre também a URI equivalente no domínio publicado e use esse valor nas variáveis da Vercel.
 
 ### 3. Prepare o Supabase
 
@@ -113,11 +124,15 @@ As migrações criam:
 
 - perfis, equipes, participantes, convites, tarefas e comentários;
 - histórico de atividades e relatórios de contribuição;
+- conexões cifradas entre equipes e suas pastas do Google Drive;
 - funções seguras para aceitar convites, entregar tarefas e gerar relatórios;
 - políticas de Row Level Security para cada nível da hierarquia;
 - bucket privado `team-photos`, com limite de 5 MB para JPG, PNG e WebP.
 
 No Supabase, configure também o template de confirmação usando [`projetohub/email-templates/confirmacao-cadastro.html`](projetohub/email-templates/confirmacao-cadastro.html).
+
+Antes de publicar, abra **Authentication → Sign In / Providers → Password** no
+Supabase e habilite a proteção contra senhas vazadas.
 
 ### 4. Inicie o projeto
 
@@ -143,6 +158,13 @@ Acesse [http://localhost:3000](http://localhost:3000).
 - Operações administrativas verificam a função atual no banco, não apenas na interface.
 - Convites usam tokens UUID, expiração, limite de uso e revogação.
 - Arquivos de equipe ficam em um bucket privado e são acessados por URLs temporárias.
+- Tokens do Google Drive são cifrados com AES-256-GCM, vinculados à equipe e à pasta e nunca são enviados ao navegador pela aplicação.
+- A integração solicita somente `drive.file`, sem acesso irrestrito ao Drive do usuário.
+- Listagem e download confirmam a participação na equipe; upload exige editor, colíder ou líder.
+- Rotas de escrita verificam a origem da requisição, e respostas recebem cabeçalhos contra enquadramento, sniffing de conteúdo e abuso de permissões do navegador.
+- Fotos têm tamanho, tipo declarado e assinatura binária verificados antes do armazenamento.
+- Sessões de upload aceitam no máximo 250 MB e somente URLs de envio HTTPS do Google são entregues ao navegador.
+- Dependências diretas e ferramentas de desenvolvimento ficam fixadas em versões exatas no manifesto.
 - Prazos de tarefas não podem ultrapassar a entrega da equipe.
 - Tarefas só podem ser atribuídas a membros com permissão de contribuição no momento da atribuição.
 - O líder original não pode ser removido ou perder a liderança por uma simples alteração de função.
@@ -155,11 +177,12 @@ O projeto foi validado com:
 ```bash
 npm run lint
 npm run build
+npm audit
 ```
 
 Também foram verificados os fluxos de criação de equipe, liderança automática, convite, tarefa, comentário, entrega, aprovação, histórico e relatório em uma transação revertida ao final. Assim, nenhum registro de teste permanece no banco.
 
 ## Deploy
 
-Na Vercel, use `projetohub` como diretório raiz do projeto e cadastre as mesmas variáveis de ambiente utilizadas localmente. Depois, inclua o domínio publicado na lista de URLs permitidas do Supabase Auth para que confirmações de e-mail e retornos de convite funcionem corretamente.
+Na Vercel, use `projetohub` como diretório raiz do projeto e cadastre as mesmas variáveis de ambiente utilizadas localmente. Depois, inclua o domínio publicado na lista de URLs permitidas do Supabase Auth para que confirmações de e-mail e retornos de convite funcionem corretamente. A URI de callback publicada também deve ser cadastrada no cliente OAuth do Google sem diferenças de protocolo, domínio ou caminho.
 

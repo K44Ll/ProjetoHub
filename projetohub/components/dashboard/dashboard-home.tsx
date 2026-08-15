@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { BrandMark } from "@/components/brand-mark";
 import { ThemeControl } from "@/components/theme-control";
 import { createClient } from "@/utils/supabase/client";
 import type {
@@ -175,11 +176,7 @@ export function DashboardHome({ user, data }: DashboardHomeProps) {
 
       <header className="dashboard-header">
         <Link className="brand" href="/" aria-label="ProjetoHub — página inicial">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
+          <BrandMark />
           <span>ProjetoHub</span>
         </Link>
 

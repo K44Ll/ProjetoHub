@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { BrandMark } from "@/components/brand-mark";
 import { ThemeControl } from "@/components/theme-control";
 
 type AuthShellProps = {
@@ -27,11 +28,7 @@ export function AuthShell({
 
       <header className="login-header">
         <Link className="brand" href="/" aria-label="ProjetoHub — página inicial">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
+          <BrandMark />
           <span>ProjetoHub</span>
         </Link>
 
@@ -49,6 +46,11 @@ export function AuthShell({
           {children}
 
           <p className="login-note">{note}</p>
+          <nav className="auth-legal-links" aria-label="Documentos legais">
+            <Link href="/privacy-police">Privacidade</Link>
+            <span aria-hidden="true">·</span>
+            <Link href="/terms-of-service">Termos de serviço</Link>
+          </nav>
         </div>
 
         <ProductOverview />
