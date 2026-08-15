@@ -1,59 +1,54 @@
 # ProjetoHub
 
-Organização de trabalhos em grupo com responsabilidades claras, prazos visíveis e contribuições registradas.
+Plataforma para organizar equipes, tarefas, entregas e arquivos de projetos em um só lugar. O ProjetoHub usa dados reais do Supabase; não há conteúdo de demonstração nem registros mockados na aplicação.
 
-O ProjetoHub reúne equipes, tarefas, entregas e histórico em um único espaço. Líderes distribuem o trabalho, participantes acompanham suas responsabilidades e o grupo consegue identificar atrasos e gerar um relatório final baseado no que realmente aconteceu durante o projeto.
+## O que o projeto entrega
 
-> O sistema não preenche o painel com dados demonstrativos. Equipes, tarefas, atividades e relatórios exibidos vêm do Supabase e pertencem ao usuário autenticado.
+- Cadastro, login, confirmação por e-mail e encerramento de sessão.
+- Página inicial com as equipes do usuário, tarefas pendentes, prazos e atividade recente.
+- Criação e edição de equipes, com foto opcional e área privada de arquivos.
+- Convites por link, com expiração e possibilidade de revogação.
+- Papéis de membro: leitor, editor, co-líder e líder.
+- Criação, envio e revisão de tarefas, comentários e relatórios da equipe.
+- Integração opcional com Google Drive para cada equipe: conexão OAuth, upload, listagem e download de arquivos.
+- Sete temas persistidos no navegador: Light, Dark, Dark OLED, Neon, Tokyo Lights, Black Green e Black Purple.
+- Páginas públicas de [privacidade](./projetohub/app/privacy-police/page.tsx) e [termos de serviço](./projetohub/app/terms-of-service/page.tsx).
 
-## Principais recursos
+## Arquitetura
 
-- Cadastro e login com confirmação de e-mail.
-- Página inicial com equipes, projetos pendentes, próximas entregas e tarefas do usuário.
-- Criação de equipes com nome, matéria, tema, professor, descrição, foto e data de entrega.
-- Entrada de participantes por link de convite com validade, limite de usos e função predefinida.
-- Hierarquia de permissões com leitor, editor, colíder e líder.
-- Distribuição de tarefas por participante, com descrição, prioridade e prazo próprio.
-- Envio de entregas para revisão e aprovação pela liderança.
-- Comentários vinculados às tarefas.
-- Avisos nominais para tarefas atrasadas, deixando claro quem precisa agir.
-- Histórico de criação, entregas, comentários, alterações e relatórios.
-- Relatórios de contribuição gerados a partir dos registros reais da equipe.
-- Fotos privadas de equipe armazenadas no Supabase Storage.
-- Pasta real por equipe no Google Drive, com conexão OAuth, listagem, upload e download pelo site.
-- Sete temas: Light, Dark, Dark OLED, Neon, Tokyo Lights, Black Green e Black Purple.
+```mermaid
+flowchart LR
+  U[Usuário] --> N[Next.js / App Router]
+  N --> A[Server Actions e rotas protegidas]
+  A --> S[Supabase: Auth, Postgres e Storage]
+  A --> G[Google Drive API]
+  G --> F[Pasta exclusiva da equipe]
+```
 
-## Hierarquia da equipe
-
-| Função | Permissões |
-| --- | --- |
-| Leitor | Consulta equipe, tarefas, atividades, relatórios e baixa arquivos. |
-| Editor | Também comenta, envia tarefas e arquivos para a pasta da equipe. |
-| Colíder | Também cria convites, distribui tarefas, revisa entregas, gera relatórios e conecta o Drive. |
-| Líder | Possui todas as permissões e administra funções, participantes e integrações. |
-
-Cada equipe possui um único líder. Novos participantes entram com a função definida no convite, e somente o líder pode promover, rebaixar ou remover integrantes.
-
-## Fluxo de uso
-
-1. O líder cria uma equipe e informa os detalhes do trabalho.
-2. Gera um link de convite escolhendo função, validade e quantidade de entradas.
-3. Os participantes confirmam suas contas e entram pelo link.
-4. Líderes e colíderes atribuem tarefas com responsáveis e prazos.
-5. Editores enviam suas entregas, recebem comentários e aguardam revisão.
-6. O painel destaca atrasos e mantém o histórico do processo.
-7. Ao final, a liderança gera um relatório com tarefas atribuídas, concluídas, atrasadas e comentários de cada participante.
+A interface e as rotas estão em `projetohub/`; o Supabase concentra autenticação, banco e armazenamento de fotos. A integração do Drive é processada no servidor: os tokens do Google não são enviados ao navegador.
 
 ## Tecnologias
 
-- [Next.js 16](https://nextjs.org/) com App Router e Server Actions.
-- [React 19](https://react.dev/) e TypeScript.
-- [Tailwind CSS 4](https://tailwindcss.com/).
-- [Supabase](https://supabase.com/) para autenticação, PostgreSQL, Storage e Row Level Security.
-- [`@supabase/ssr`](https://supabase.com/docs/guides/auth/server-side/nextjs) para sessões no servidor e no navegador.
-- [Google Drive API](https://developers.google.com/workspace/drive/api/guides/about-sdk) com o escopo limitado `drive.file`.
+| Camada | Tecnologia |
+| --- | --- |
+| Aplicação | Next.js 16, React 19 e TypeScript |
+| Estilos | Tailwind CSS 4 e CSS próprio |
+| Autenticação, banco e storage | Supabase (`@supabase/ssr` e `@supabase/supabase-js`) |
+| Arquivos de equipe | Google Drive API, via OAuth 2.0 |
+| Qualidade | ESLint, TypeScript e npm audit |
 
-Os relatórios atuais são determinísticos e usam exclusivamente os registros do banco. A configuração do OpenRouter é opcional e está reservada para futuras funcionalidades que realmente precisem de IA.
+## Papéis e permissões
+
+| Ação | Leitor | Editor | Co-líder | Líder |
+| --- | :---: | :---: | :---: | :---: |
+| Ver equipe, tarefas, relatórios e arquivos | ✓ | ✓ | ✓ | ✓ |
+| Baixar arquivos do Drive | ✓ | ✓ | ✓ | ✓ |
+| Comentar, enviar tarefa e fazer upload | — | ✓ | ✓ | ✓ |
+| Criar tarefas, revisar entregas, gerar relatório e gerir convites | — | — | ✓ | ✓ |
+| Conectar/desconectar o Google Drive | — | — | ✓ | ✓ |
+| Alterar cargos e remover membros | — | — | — | ✓ |
+
+As permissões não dependem apenas da interface: elas são verificadas nas Server Actions, nas rotas da API e pelas políticas de Row Level Security (RLS) do Supabase.
 
 ## Estrutura do repositório
 
@@ -61,58 +56,87 @@ Os relatórios atuais são determinísticos e usam exclusivamente os registros d
 ProjetoHub/
 ├── README.md
 └── projetohub/
-    ├── app/                  # Rotas, páginas e Server Actions
-    ├── components/           # Autenticação, painel, equipes e temas
-    ├── email-templates/      # Confirmação de cadastro do Supabase
-    ├── lib/                  # Consultas reais do painel e das equipes
-    ├── supabase/migrations/  # Schema, RLS, funções, gatilhos e Storage
-    ├── types/                # Tipos da aplicação e do banco
-    └── utils/supabase/       # Clientes para browser, servidor e proxy
+    ├── app/                    # páginas, Server Actions e rotas da API
+    ├── components/             # componentes da interface
+    ├── lib/google-drive/       # OAuth, criptografia e operações do Drive
+    ├── utils/supabase/         # clientes Supabase para browser, servidor e middleware
+    ├── supabase/migrations/    # esquema, RLS, funções e políticas
+    ├── email-templates/        # template de confirmação de cadastro
+    └── public/                 # imagens e ícones públicos
 ```
 
-## Executando localmente
+Rotas principais:
 
-### Requisitos
+| Rota | Finalidade |
+| --- | --- |
+| `/` | Painel inicial autenticado |
+| `/login` | Acesso à conta |
+| `/cadastro` | Criação de conta |
+| `/equipes/nova` | Criação de equipe |
+| `/equipes/[teamId]` | Espaço de trabalho de uma equipe |
+| `/convite/[token]` | Aceite de convite |
+| `/privacy-police` | Política de privacidade |
+| `/terms-of-service` | Termos de serviço |
 
-- Node.js em uma versão LTS atual.
-- npm.
-- Um projeto no Supabase.
+## Modelo de dados
 
-### 1. Clone e instale
+O banco possui as entidades abaixo, todas protegidas por RLS:
+
+- `profiles`: perfil público básico de cada pessoa.
+- `teams`: equipes e suas configurações.
+- `team_members`: vínculo entre pessoas, equipes e papéis.
+- `team_invites`: convites com token, validade e status.
+- `tasks` e `task_comments`: tarefas, entregas, avaliações e conversas.
+- `activity_events`: histórico de atividades.
+- `team_reports`: relatórios gerados para a equipe.
+- `team_drive_connections`: conexão criptografada de uma equipe ao Drive.
+
+As fotos de equipes ficam no bucket privado `team-photos`, e o acesso também é controlado pelas políticas do Supabase.
+
+## Pré-requisitos
+
+- Node.js em versão LTS recente (20 ou superior recomendado).
+- Uma conta e projeto no Supabase.
+- Para usar arquivos no Drive, um projeto no Google Cloud com a Google Drive API ativada.
+
+## Instalação local
 
 ```bash
-git clone https://github.com/K44Ll/ProjetoHub.git
+git clone <URL_DO_REPOSITORIO>
 cd ProjetoHub/projetohub
 npm install
 ```
 
-### 2. Configure o ambiente
-
-Crie `.env.local` no diretório atual (`projetohub/`):
+Crie `projetohub/.env.local` a partir do exemplo abaixo. Não envie esse arquivo ao Git e nunca use a chave `service_role` no cliente.
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sua_chave_publicavel
+NEXT_PUBLIC_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_SUA_CHAVE
 
-GOOGLE_DRIVE_CLIENT_ID=seu_cliente_oauth
-GOOGLE_DRIVE_CLIENT_SECRET=seu_segredo_oauth
+# Necessárias apenas para a integração com Google Drive
+GOOGLE_DRIVE_CLIENT_ID=SEU_CLIENT_ID.apps.googleusercontent.com
+GOOGLE_DRIVE_CLIENT_SECRET=SEU_CLIENT_SECRET
 GOOGLE_DRIVE_REDIRECT_URI=http://localhost:3000/api/integrations/google-drive/callback
 
-# Fortemente recomendado: use uma chave longa, aleatória e exclusiva em produção.
-GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY=uma_chave_aleatoria_longa_e_exclusiva
-
-# Opcionais: ainda não são necessários para os relatórios atuais
-OPENROUTER_KEY=sua_chave
-OPENROUTER_MODEL=seu_modelo
+# Recomendado: segredo longo, aleatório e exclusivo para criptografar tokens do Drive.
+GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY=UM_SEGREDO_LONGO_E_ALEATORIO
 ```
 
-Nunca envie `.env.local` ao Git. Os arquivos de ambiente já estão ignorados pelo projeto.
+`GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY` é opcional por compatibilidade, mas deve ser configurada em produção. Sem ela, o sistema usa o segredo OAuth como alternativa de criptografia.
 
-No Google Cloud, ative a Google Drive API, crie um cliente OAuth do tipo aplicação Web e cadastre a URI de redirecionamento exatamente como aparece em `GOOGLE_DRIVE_REDIRECT_URI`. Para produção, cadastre também a URI equivalente no domínio publicado e use esse valor nas variáveis da Vercel.
+Inicie o ambiente local:
 
-### 3. Prepare o Supabase
+```bash
+npm run dev
+```
 
-Vincule o projeto e aplique as migrações:
+Abra `http://localhost:3000`.
+
+## Configuração do Supabase
+
+### 1. Aplicar o esquema
+
+Instale a CLI do Supabase se necessário, autentique-se, vincule o projeto e aplique todas as migrações versionadas:
 
 ```bash
 npx supabase login
@@ -120,69 +144,73 @@ npx supabase link --project-ref SEU_PROJECT_REF
 npx supabase db push
 ```
 
-As migrações criam:
+As migrações em [`projetohub/supabase/migrations`](./projetohub/supabase/migrations) criam o modelo colaborativo, as políticas RLS, as funções usadas pela aplicação, o histórico de contribuições, a integração do Drive e os reforços de segurança.
 
-- perfis, equipes, participantes, convites, tarefas e comentários;
-- histórico de atividades e relatórios de contribuição;
-- conexões cifradas entre equipes e suas pastas do Google Drive;
-- funções seguras para aceitar convites, entregar tarefas e gerar relatórios;
-- políticas de Row Level Security para cada nível da hierarquia;
-- bucket privado `team-photos`, com limite de 5 MB para JPG, PNG e WebP.
+### 2. Configurar autenticação
 
-No Supabase, configure também o template de confirmação usando [`projetohub/email-templates/confirmacao-cadastro.html`](projetohub/email-templates/confirmacao-cadastro.html).
+No painel do Supabase, em **Authentication → URL Configuration**:
 
-Antes de publicar, abra **Authentication → Sign In / Providers → Password** no
-Supabase e habilite a proteção contra senhas vazadas.
+- Defina a URL do site para a URL local ou de produção correspondente.
+- Adicione as URLs de redirecionamento permitidas, incluindo `http://localhost:3000/**` no desenvolvimento e o domínio da Vercel em produção.
+- Ative a confirmação de e-mail se quiser exigir validação antes do primeiro acesso.
 
-### 4. Inicie o projeto
+O template pronto para confirmação está em [`projetohub/email-templates/confirmacao-cadastro.html`](./projetohub/email-templates/confirmacao-cadastro.html). Cole seu conteúdo em **Authentication → Email Templates → Confirm signup**. Ele usa a variável do Supabase `{{ .ConfirmationURL }}`.
 
-```bash
-npm run dev
-```
+Também é recomendado habilitar a proteção contra senhas vazadas em **Authentication → Password Security**.
 
-Acesse [http://localhost:3000](http://localhost:3000).
+## Configuração do Google Drive
 
-## Comandos disponíveis
+A integração cria ou reutiliza uma pasta própria para cada equipe e opera apenas nela. O escopo utilizado é `https://www.googleapis.com/auth/drive.file`, que limita o acesso aos arquivos criados ou abertos pela aplicação.
 
-| Comando | Finalidade |
-| --- | --- |
-| `npm run dev` | Inicia o ambiente de desenvolvimento. |
-| `npm run build` | Compila e valida a versão de produção. |
-| `npm run start` | Executa a compilação de produção. |
-| `npm run lint` | Verifica qualidade, React e TypeScript. |
+1. No Google Cloud Console, crie ou selecione um projeto e ative a **Google Drive API**.
+2. Configure a tela de consentimento OAuth.
+3. Crie uma credencial OAuth 2.0 do tipo **Web application**.
+4. Em **Authorized redirect URIs**, cadastre exatamente a URL de `GOOGLE_DRIVE_REDIRECT_URI`.
+5. Preencha as quatro variáveis `GOOGLE_DRIVE_*` no ambiente local e de produção.
+6. No ProjetoHub, entre na equipe como co-líder ou líder e conecte o Drive pela área de arquivos.
 
-## Segurança e integridade dos dados
+Em produção, o redirecionamento OAuth deve usar HTTPS. O único HTTP aceito pelo código é `localhost` ou `127.0.0.1` para desenvolvimento.
 
-- Todas as tabelas da aplicação usam Row Level Security.
-- Consultas são limitadas às equipes das quais o usuário participa.
-- Operações administrativas verificam a função atual no banco, não apenas na interface.
-- Convites usam tokens UUID, expiração, limite de uso e revogação.
-- Arquivos de equipe ficam em um bucket privado e são acessados por URLs temporárias.
-- Tokens do Google Drive são cifrados com AES-256-GCM, vinculados à equipe e à pasta e nunca são enviados ao navegador pela aplicação.
-- A integração solicita somente `drive.file`, sem acesso irrestrito ao Drive do usuário.
-- Listagem e download confirmam a participação na equipe; upload exige editor, colíder ou líder.
-- Rotas de escrita verificam a origem da requisição, e respostas recebem cabeçalhos contra enquadramento, sniffing de conteúdo e abuso de permissões do navegador.
-- Fotos têm tamanho, tipo declarado e assinatura binária verificados antes do armazenamento.
-- Sessões de upload aceitam no máximo 250 MB e somente URLs de envio HTTPS do Google são entregues ao navegador.
-- Dependências diretas e ferramentas de desenvolvimento ficam fixadas em versões exatas no manifesto.
-- Prazos de tarefas não podem ultrapassar a entrega da equipe.
-- Tarefas só podem ser atribuídas a membros com permissão de contribuição no momento da atribuição.
-- O líder original não pode ser removido ou perder a liderança por uma simples alteração de função.
-- Relatórios registram números verificáveis; não existem percentuais de contribuição inventados.
+## Segurança
 
-## Verificações realizadas
+- Autenticação baseada em sessão do Supabase, atualizada pelo middleware.
+- RLS ativado nas tabelas expostas; a autorização é feita pelo usuário autenticado e pelo vínculo de membro da equipe.
+- Operações sensíveis validam identificadores, tamanho de texto, datas e papéis permitidos no servidor.
+- Convites usam tokens aleatórios, expiração e revogação.
+- Rotas que alteram dados validam a origem da requisição para reduzir risco de CSRF.
+- Upload de foto aceita somente JPEG, PNG e WebP, verifica assinatura do arquivo e limita o tamanho a 5 MB.
+- Tokens de atualização do Google Drive são criptografados com AES-256-GCM antes de serem persistidos.
+- Uploads para o Drive têm limite de 250 MB e downloads só são liberados para arquivos pertencentes à pasta raiz da equipe.
+- Cabeçalhos HTTP incluem CSP, HSTS, proteção contra clickjacking, MIME sniffing e permissões de navegador restritas.
 
-O projeto foi validado com:
+## Comandos úteis
+
+Execute os comandos dentro de `projetohub/`:
 
 ```bash
-npm run lint
-npm run build
-npm audit
+npm run dev          # desenvolvimento
+npm run lint         # análise estática
+npx tsc --noEmit     # verificação de tipos
+npm run build        # build de produção
+npm start            # executar o build
+npm audit            # auditoria de dependências
 ```
 
-Também foram verificados os fluxos de criação de equipe, liderança automática, convite, tarefa, comentário, entrega, aprovação, histórico e relatório em uma transação revertida ao final. Assim, nenhum registro de teste permanece no banco.
+## Deploy na Vercel
 
-## Deploy
+1. Importe o repositório na Vercel.
+2. Defina **Root Directory** como `projetohub`.
+3. Cadastre as variáveis de ambiente do `.env.local` no ambiente de produção; não copie arquivos de ambiente para o repositório.
+4. Aplique as migrações do Supabase no projeto de produção antes de publicar funcionalidades dependentes do banco.
+5. Atualize no Supabase as URLs de site e redirecionamento com o domínio final da Vercel.
+6. Atualize no Google Cloud a URI de retorno para `https://SEU_DOMINIO/api/integrations/google-drive/callback`.
 
-Na Vercel, use `projetohub` como diretório raiz do projeto e cadastre as mesmas variáveis de ambiente utilizadas localmente. Depois, inclua o domínio publicado na lista de URLs permitidas do Supabase Auth para que confirmações de e-mail e retornos de convite funcionem corretamente. A URI de callback publicada também deve ser cadastrada no cliente OAuth do Google sem diferenças de protocolo, domínio ou caminho.
+Após o deploy, valide pelo menos: cadastro/confirmação, login, criação de equipe, convite, regras de cargo, upload de foto e conexão/download de arquivo do Google Drive.
 
+## Ícones e identidade visual
+
+Os ícones do aplicativo estão em `projetohub/app/icon.png`, `projetohub/app/apple-icon.png`, `projetohub/app/favicon.ico` e `projetohub/public/projetohub-icon.png`.
+
+## Licença
+
+Este repositório ainda não possui uma licença declarada.
