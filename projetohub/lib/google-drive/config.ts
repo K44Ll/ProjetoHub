@@ -2,6 +2,9 @@ import "server-only";
 
 export const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 
+const GOOGLE_DRIVE_CALLBACK_PATH =
+  "/api/integrations/google-drive/callback";
+
 export const DRIVE_OAUTH_COOKIE_PATH = "/api/integrations/google-drive";
 export const DRIVE_OAUTH_STATE_COOKIE = "projetohub_drive_oauth_state";
 export const DRIVE_OAUTH_TEAM_COOKIE = "projetohub_drive_oauth_team";
@@ -15,7 +18,13 @@ function requiredEnvironmentValue(name: string) {
 }
 
 export function getGoogleDriveConfig() {
-  const redirectUri = requiredEnvironmentValue("GOOGLE_DRIVE_REDIRECT_URI");
+  const vercelProductionHost =
+    process.env.VERCEL === "1"
+      ? process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
+      : undefined;
+  const redirectUri = vercelProductionHost
+    ? `https://${vercelProductionHost}${GOOGLE_DRIVE_CALLBACK_PATH}`
+    : requiredEnvironmentValue("GOOGLE_DRIVE_REDIRECT_URI");
   let parsedRedirectUri: URL;
 
   try {
